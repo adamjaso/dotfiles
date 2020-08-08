@@ -1,0 +1,44 @@
+#!/bin/sh
+
+usage() {
+    echo $1
+    echo "USAGE: $(basename $0) PRIMARY SECONDARY (enable|disable|show)"
+    cat <<EOF
+    Sets up NAT rules to enable internet access for SECONDARY via PRIMARY.
+
+    You must run this as root.
+EOF
+    exit 1
+}
+
+showerr() {
+    echo $1
+    return 1
+}
+
+primary=$1
+secondary=$2
+action=$3
+[ -n "$primary" ] || usage "PRIMARY is missing"
+[ -n "$secondary" ] || usage "SECONDARY is missing"
+[ -n "$action" ] || usage "enable|disable|show is required"
+[ $(id -u) = 0 ] || usage "You must be root."
+sysctl -a 2>/dev/null | grep -q 'net.ipv4.ip_forward = 1' || usage "You must have IP forwarding enabled (hint: sysctl net.ipv4.ip_forward=1)"
+
+change() {
+    flag=$1
+    iptables -t nat $flag POSTROUTING -o "$primary" -j MASQUERADE || showerr "MASQUERADE rule failed"
+    iptables $flag FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT || showerr "FORWARD conntrack rule failed"
+    iptables $flag FORWARD -i "$secondary" -o "$primary" -j ACCEPT || showerr "FORWARD $secondary to $primary failed"
+}
+
+if [ "$action" = enable ]; then
+    change -A && echo "ENABLED" || echo "FAILED"
+elif [ "$action" = disable ]; then
+    change -D && echo "DISABLED" || echo "FAILED"
+elif [ "$action" = show ]; then
+    ( sysctl -a 2>/dev/null | grep -q 'net.ipv4.ip_forward = 1' && change -C && echo "ENABLED" ) || echo "DISABLED"
+else
+    echo "Action $action is unrecognized."
+    exit 1
+fi

@@ -1,0 +1,5 @@
+#!/bin/bash
+tmpfile=$(mktemp)
+openssl rsa -pubout > $tmpfile && \
+ssh-keygen -i -f $tmpfile -m PKCS8
+rm $tmpfile

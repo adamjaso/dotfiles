@@ -1,0 +1,3 @@
+#!/bin/bash
+# Recursively runs readlink until a file is found
+f=$(which $1) ; while [ -L $f  ]; do echo -- $f -- ; dn=$(dirname $f) ; nf=$(readlink $f) ; [[ $nf == /*  ]] && f=$nf || f=$dn/$nf ; done ; echo $f

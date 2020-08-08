@@ -1,0 +1,6 @@
+#!/bin/sh
+
+DEV=/dev/cu.usbserial
+
+stty -f $DEV 115200
+sz -auvy $1 > $DEV < $DEV
