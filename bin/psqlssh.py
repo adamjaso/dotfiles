@@ -84,22 +84,22 @@ def psql_command(psql_url, local_host, local_port, dump=False):
         psql_command = ["pg_dump", "--data-only", psql_url]
     else:
         psql_command = ["psql", psql_url]
+    print(*psql_command, file=sys.stderr)
     return subprocess.Popen(psql_command)
 
 
 def ssh_port_forward(psql_url, bastion_host, local_port, remote_port):
     psql = parse.urlsplit(psql_url)
     remote_host = psql.hostname
-    remote_port = psql.port or remote_port
+    remote_port = str(psql.port or remote_port)
+    forward_host = ":".join([str(local_port), remote_host, remote_port])
     ssh_port_forward = [
         "ssh",
         "-NL",
-        f"{local_port}:{remote_host}:{remote_port}",
+        forward_host,
         bastion_host,
     ]
-    if show:
-        print(" ".join(ssh_port_forward), file=sys.stderr)
-        return None
+    print(*ssh_port_forward, file=sys.stderr)
     return subprocess.Popen(ssh_port_forward)
 
 
