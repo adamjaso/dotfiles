@@ -52,15 +52,47 @@ def main():
         action="store_true",
         help="This indicates to dump the Postgres database using 'pg_dump'",
     )
+    args.add_argument(
+        "--backup",
+        action="store_true",
+        help="Dump the database in the custom 'pg_dump' binary format (-Fc).",
+    )
+    args.add_argument(
+        "--schema-only",
+        action="store_true",
+        help="This indicates to use 'pg_dump' to dump the Postgres database schema only",
+    )
+    args.add_argument(
+        "-t",
+        "--include-tables",
+        nargs="*",
+        help="This indicates to specify for 'pg_dump' to include the given table names.",
+    )
+    args.add_argument(
+        "-T",
+        "--exclude-tables",
+        nargs="*",
+        help="This indicates to specify for 'pg_dump' to exclude the given table names.",
+    )
     args = args.parse_args()
 
     sshp = ssh_port_forward(
-        args.psql_url, args.bastion_host, args.local_port, args.remote_port,
+        args.psql_url,
+        args.bastion_host,
+        args.local_port,
+        args.remote_port,
     )
     signal.signal(signal.SIGINT, lambda *args: None)
     time.sleep(args.wait_seconds)
     psqlp = psql_command(
-        args.psql_url, args.local_host, args.local_port, dump=args.dump,
+        args.psql_url,
+        args.local_host,
+        args.local_port,
+        dump=args.dump,
+        backup=args.backup,
+        schema_only=args.schema_only,
+        exclude_tables=args.exclude_tables,
+        include_tables=args.include_tables,
     )
     try:
         if psqlp.wait() != 0:
@@ -69,7 +101,16 @@ def main():
         sshp.terminate()
 
 
-def psql_command(psql_url, local_host, local_port, dump=False):
+def psql_command(
+    psql_url,
+    local_host,
+    local_port,
+    dump=False,
+    schema_only=False,
+    exclude_tables=None,
+    include_tables=None,
+    backup=False,
+):
     psql = parse.urlsplit(psql_url)
     psql_url = parse.urlunsplit(
         (
@@ -81,25 +122,52 @@ def psql_command(psql_url, local_host, local_port, dump=False):
         )
     )
     if dump:
-        psql_command = ["pg_dump", "--data-only", psql_url]
+        if schema_only:
+            psql_command = [
+                "pg_dump",
+                "--schema-only",
+                "--no-owner",
+                "--no-acl",
+                psql_url,
+            ]
+        else:
+            psql_command = [
+                "pg_dump",
+                "--data-only",
+                "--no-owner",
+                "--no-acl",
+                psql_url,
+            ]
+            if backup:
+                psql_command.insert(1, "-Fc")
+            else:
+                psql_command.insert(1, "--on-conflict-do-nothing")
+                psql_command.insert(1, "--inserts")
+            if exclude_tables or include_tables:
+                tables_flags = []
+                if exclude_tables:
+                    for table_name in exclude_tables:
+                        tables_flags += ["-T", table_name]
+                if include_tables:
+                    for table_name in include_tables:
+                        tables_flags += ["-t", table_name]
+                psql_command = psql_command[0:1] + tables_flags + psql_command[1:]
+            print(psql_command, file=sys.stderr)
     else:
         psql_command = ["psql", psql_url]
-    print(*psql_command, file=sys.stderr)
     return subprocess.Popen(psql_command)
 
 
 def ssh_port_forward(psql_url, bastion_host, local_port, remote_port):
     psql = parse.urlsplit(psql_url)
     remote_host = psql.hostname
-    remote_port = str(psql.port or remote_port)
-    forward_host = ":".join([str(local_port), remote_host, remote_port])
+    remote_port = psql.port or remote_port
     ssh_port_forward = [
         "ssh",
-        "-NL",
-        forward_host,
+        "-qNL",
+        f"{local_port}:{remote_host}:{remote_port}",
         bastion_host,
     ]
-    print(*ssh_port_forward, file=sys.stderr)
     return subprocess.Popen(ssh_port_forward)
 
 
