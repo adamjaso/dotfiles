@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import sys
 import time
 import signal
@@ -74,6 +75,11 @@ def main():
         nargs="*",
         help="This indicates to specify for 'pg_dump' to exclude the given table names.",
     )
+    args.add_argument(
+        "--use-history",
+        action="store_true",
+        help="This indicates to allow PSQL_HISTORY; default is to ignore PSQL_HISTORY",
+    )
     args = args.parse_args()
 
     sshp = ssh_port_forward(
@@ -93,6 +99,7 @@ def main():
         schema_only=args.schema_only,
         exclude_tables=args.exclude_tables,
         include_tables=args.include_tables,
+        use_history=args.use_history,
     )
     try:
         if psqlp.wait() != 0:
@@ -110,6 +117,7 @@ def psql_command(
     exclude_tables=None,
     include_tables=None,
     backup=False,
+    use_history=False,
 ):
     psql = parse.urlsplit(psql_url)
     psql_url = parse.urlunsplit(
@@ -155,7 +163,10 @@ def psql_command(
             print(psql_command, file=sys.stderr)
     else:
         psql_command = ["psql", psql_url]
-    return subprocess.Popen(psql_command)
+    env = {name: value for name, value in os.environ.items()}
+    if not use_history:
+        env["PSQL_HISTORY"] = os.devnull
+    return subprocess.Popen(psql_command, env=env)
 
 
 def ssh_port_forward(psql_url, bastion_host, local_port, remote_port):
