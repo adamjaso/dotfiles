@@ -1,0 +1,36 @@
+#!/bin/sh
+increase=+5%
+decrease=-5%
+usage() {
+    [ -z "$1" ] || echo $1 >&2
+    cat <<EOF >&2
+usage: $(basename $0) -l|--list
+           list all audio outputs
+       $(basename $0) -s|--search alsa|bluez|...
+           search audio outputs with the value of this flag
+       $(basename $0) --set-speaker NUM
+           force the audio output on this output number
+       $(basename $0) -v|--volume
+           show volume for the currently selected output
+       $(basename $0) -
+           decrease volume $decrease
+       $(basename $0) +
+           increase volume $increase
+EOF
+    exit 1
+}
+case $1 in
+-l|--list-speakers)
+    pactl list short sinks ;;
+-s|--search-speakers)
+    [ -n "$2" ] || usage "--search requires a value"
+    pactl list short sinks | awk '$2~/'$2'/{print$1}' ;;
+--set-speaker)
+    [ -n "$2" ] || usage "--set requires a value"
+    pactl set-default-sink $2 ;;
+-v|--volume) pactl get-sink-volume @DEFAULT_SINK@ | awk 'NR==1{print"L "$5" R "$12}' ;;
++)  pactl set-sink-volume @DEFAULT_SINK@ $increase ;;
+-)  pactl set-sink-volume @DEFAULT_SINK@ $decrease ;;
+*)
+    usage "unknown command";;
+esac
