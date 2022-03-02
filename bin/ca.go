@@ -5,12 +5,15 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/pem"
 	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"math/big"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,7 +83,7 @@ func randSerialNumber() *big.Int {
 	return serialNumber
 }
 
-func createCert(cakeyfile, cacertfile, csrfile, pubkeyfile, commonName, usage string, validity time.Duration) {
+func createCert(cakeyfile, cacertfile, csrfile, pubkeyfile, commonName, usage, san string, validity time.Duration) {
 	privkeyCA, err := readPrivateKey(cakeyfile)
 	if err != nil {
 		fmt.Println("readPrivateKey", err)
@@ -152,6 +155,10 @@ func createCert(cakeyfile, cacertfile, csrfile, pubkeyfile, commonName, usage st
 		fmt.Println("unknown usage", usage)
 		return
 	}
+	if err := setSAN(template, san); err != nil {
+		fmt.Printf("invalid SAN %v\n", err)
+		return
+	}
 	fmt.Fprintf(os.Stderr, "usage       %s\n", usage)
 	fmt.Fprintf(os.Stderr, "serial_num  %s\n", template.SerialNumber)
 	certbytes, err := x509.CreateCertificate(rand.Reader, template, parent, pubkeyToSign, privkeyCA)
@@ -165,6 +172,54 @@ func createCert(cakeyfile, cacertfile, csrfile, pubkeyfile, commonName, usage st
 	}
 }
 
+func setSAN(cert *x509.Certificate, san string) error {
+	for _, pair := range strings.Split(san, "/") {
+		parts := strings.SplitN(pair, ":", 2)
+		if len(parts) <= 1 {
+			continue
+		}
+		santype := parts[0]
+		values := strings.Split(parts[1], ",")
+		switch santype {
+		case "dns":
+			cert.DNSNames = values
+			for _, v := range values {
+				fmt.Fprintf(os.Stderr, "dns         %s\n", v)
+			}
+		case "email":
+			cert.EmailAddresses = values
+			for _, v := range values {
+				fmt.Fprintf(os.Stderr, "email       %s\n", v)
+			}
+		case "ip":
+			cert.IPAddresses = make([]net.IP, len(values))
+			for i, v := range values {
+				ip := net.ParseIP(v)
+				if ip == nil {
+					return fmt.Errorf("invalid IP %s", v)
+				}
+				cert.IPAddresses[i] = ip
+				fmt.Fprintf(os.Stderr, "ip          %s\n", v)
+			}
+		case "uri":
+			cert.URIs = make([]*url.URL, len(values))
+			for i, v := range values {
+				uval, e := base64.StdEncoding.DecodeString(v)
+				if e != nil {
+					return fmt.Errorf("invalid URI %s must be base64 encoded %v", v, e)
+				}
+				u, e := url.Parse(strings.TrimSpace(string(uval)))
+				if e != nil {
+					return fmt.Errorf("invalid URI %s %v", v, e)
+				}
+				cert.URIs[i] = u
+				fmt.Fprintf(os.Stderr, "uri         %s\n", u.String())
+			}
+		}
+	}
+	return nil
+}
+
 func getCommonName(filename string) string {
 	base := filepath.Base(filename)
 	parts := strings.Split(base, ".")
@@ -174,15 +229,18 @@ func getCommonName(filename string) string {
 	return base
 }
 
-func getFilenameWithExt(ext string) string {
-	pat := "*." + ext
-	if names, err := filepath.Glob(pat); err != nil {
-		return ""
-	} else if len(names) != 1 {
-		return ""
-	} else {
-		return names[0]
+func getFilenameWithExt(exts ...string) string {
+	for _, ext := range exts {
+		pat := "*." + ext
+		if names, err := filepath.Glob(pat); err != nil {
+			return ""
+		} else if len(names) != 1 {
+			return ""
+		} else {
+			return names[0]
+		}
 	}
+	return ""
 }
 
 func main() {
@@ -190,14 +248,16 @@ func main() {
 		cakeyfile, cacertfile string
 		pubkeyfile, csrfile   string
 		commonName, usage     string
+		san                   string
 		validity              time.Duration
 	)
 	flag.StringVar(&cakeyfile, "cakey", "ca.key", "CA private key")
 	flag.StringVar(&cacertfile, "ca", "", `CA certificate file (default "ca.crt")`)
-	flag.StringVar(&csrfile, "csr", "", `CSR file (default "*.csr")`)
+	flag.StringVar(&csrfile, "csr", "", `CSR file (default "*.csr" or "*.req")`)
 	flag.StringVar(&pubkeyfile, "pubkey", "", `Public key to sign file (default "*.pub")`)
-	flag.StringVar(&commonName, "commonname", "", `Certificate Subject Common Name (default pubkey or csrfile name without extension)`)
+	flag.StringVar(&commonName, "commonname", "", `Certificate Subject Common Name (default: -usage ca => default-ca, -usage client|server => from -csr or -pubkey)`)
 	flag.StringVar(&usage, "usage", "", "Certificate usage. Choices: ca|server|client")
+	flag.StringVar(&san, "subjectalternatenames", "", "Subject Alternate Names, slash separated groups formatted as type:value1,value2, i.e. ip:x,y/uri:x,y/email:x,y/dns:x,y")
 	flag.DurationVar(&validity, "validity", 24*365*time.Hour, "Certificate validity interval")
 	flag.Parse()
 
@@ -209,7 +269,7 @@ func main() {
 			commonName = "default-ca"
 		}
 		if csrfile != "" || pubkeyfile != "" {
-			fmt.Println("-csrfile and -pubkeyfile are not allowed with -usage ca")
+			fmt.Println("-csr and -pubkey are not allowed with -usage ca")
 			return
 		}
 	} else {
@@ -219,26 +279,29 @@ func main() {
 			cacertfile = "ca.crt" // default to ca.crt
 		}
 		if csrfile == "" && pubkeyfile == "" {
-			csrfile = getFilenameWithExt("csr")    // try *.csr
-			pubkeyfile = getFilenameWithExt("pub") // try *.pub
+			csrfile = getFilenameWithExt("csr", "req") // try *.csr
+			pubkeyfile = getFilenameWithExt("pub")     // try *.pub
 		}
 		if csrfile != "" {
-			if commonName == "" {
-				commonName = getCommonName(csrfile) // use csr filename without ext
+			if commonName != "" {
+				fmt.Println("-csr overrides -commonname")
+				return
 			}
 		} else if pubkeyfile != "" {
 			if commonName == "" {
 				commonName = getCommonName(pubkeyfile) // use pubkey filename without ext
 			}
 		}
-		if csrfile == "" && pubkeyfile == "" {
-			fmt.Printf("-csrfile or -pubkeyfile is required for -usage %s\n", usage)
-			return
+		if csrfile == "" {
+			if pubkeyfile == "" {
+				fmt.Printf("-csr or -pubkey is required for -usage %s\n", usage)
+				return
+			}
+			if commonName == "" {
+				fmt.Println("-csr or -commonname and -pubkey is required")
+				return
+			}
 		}
 	}
-	if csrfile == "" && commonName == "" {
-		fmt.Println("-csrfile or -commonname is required")
-		return
-	}
-	createCert(cakeyfile, cacertfile, csrfile, pubkeyfile, commonName, usage, validity)
+	createCert(cakeyfile, cacertfile, csrfile, pubkeyfile, commonName, usage, san, validity)
 }
