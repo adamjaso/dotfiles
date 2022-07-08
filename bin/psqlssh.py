@@ -59,9 +59,18 @@ def main():
         help="Dump the database in the custom 'pg_dump' binary format (-Fc).",
     )
     args.add_argument(
+        "--column-inserts",
+        action="store_true",
+        help="This indicates to use pg_dump with the '--column-inserts' flag",
+    )
+    args.add_argument(
         "--schema-only",
         action="store_true",
         help="This indicates to use 'pg_dump' to dump the Postgres database schema only",
+    )
+    args.add_argument(
+        "--run-query",
+        help="This indicates to use 'psql' to execute the given query and output the result as a CSV i.e. psql -c QUERY --csv",
     )
     args.add_argument(
         "-t",
@@ -82,13 +91,17 @@ def main():
     )
     args = args.parse_args()
 
+    def signal_handler(*args):
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+    signal_handler()
+
     sshp = ssh_port_forward(
         args.psql_url,
         args.bastion_host,
         args.local_port,
         args.remote_port,
     )
-    signal.signal(signal.SIGINT, lambda *args: None)
     time.sleep(args.wait_seconds)
     psqlp = psql_command(
         args.psql_url,
@@ -96,10 +109,12 @@ def main():
         args.local_port,
         dump=args.dump,
         backup=args.backup,
+        column_inserts=args.column_inserts,
         schema_only=args.schema_only,
         exclude_tables=args.exclude_tables,
         include_tables=args.include_tables,
         use_history=args.use_history,
+        run_query=args.run_query,
     )
     try:
         if psqlp.wait() != 0:
@@ -114,10 +129,12 @@ def psql_command(
     local_port,
     dump=False,
     schema_only=False,
+    column_inserts=False,
     exclude_tables=None,
     include_tables=None,
     backup=False,
     use_history=False,
+    run_query=None,
 ):
     psql = parse.urlsplit(psql_url)
     psql_url = parse.urlunsplit(
@@ -148,6 +165,8 @@ def psql_command(
             ]
             if backup:
                 psql_command.insert(1, "-Fc")
+            elif column_inserts:
+                psql_command.insert(1, "--column-inserts")
             else:
                 psql_command.insert(1, "--on-conflict-do-nothing")
                 psql_command.insert(1, "--inserts")
@@ -163,6 +182,8 @@ def psql_command(
             print(psql_command, file=sys.stderr)
     else:
         psql_command = ["psql", psql_url]
+        if run_query:
+            psql_command.extend(["-c", run_query, "--csv"])
     env = {name: value for name, value in os.environ.items()}
     if not use_history:
         env["PSQL_HISTORY"] = os.devnull
