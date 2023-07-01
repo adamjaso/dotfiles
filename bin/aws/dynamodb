@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+import sys
+import json
+import shlex
+import argparse
+import subprocess
+
+
+def remove_types(item):
+    if isinstance(item, list):
+        return [remove_types(i) for i in item]
+    elif isinstance(item, dict):
+        if len(item.keys()) == 1 and len(next(iter(item.keys()))) == 1:
+            return remove_types(next(iter(item.values())))
+        else:
+            return {name: remove_types(value) for name, value in item.items()}
+    else:
+        return item
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("table_name")
+    parser.add_argument("query_expr")
+    parser.add_argument("query_args", nargs="*", default=[])
+    parser.add_argument("-q", "--remove-types", action="store_true")
+    args = parser.parse_args()
+
+    values = {}
+    for arg in args.query_args:
+        name, t, value = arg.split(":", 2)
+        values[":" + name] = {t: value}
+
+    command = ["aws", "dynamodb", "scan"]
+    command.extend(["--table-name", args.table_name])
+    command.extend(["--filter-expression", args.query_expr])
+    command.extend(["--expression-attribute-values", json.dumps(values)])
+
+    print(" ".join([shlex.quote(arg) for arg in command]), file=sys.stderr)
+
+    if args.remove_types:
+        p = subprocess.Popen(command, stdout=subprocess.PIPE)
+        res = p.stdout.read()
+        if p.wait() != 0:
+            print(res, file=sys.stderr)
+        else:
+            print(json.dumps(remove_types(json.loads(res)), indent=2))
+        ret = p.returncode
+    else:
+        ret = subprocess.call(command)
+
+    sys.exit(ret)
+
+
+if __name__ == "__main__":
+    main()

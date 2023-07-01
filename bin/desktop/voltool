@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 increase=+5%
 decrease=-5%
 usage() {
@@ -8,8 +8,11 @@ usage: $(basename $0) -l|--list
            list all audio outputs
        $(basename $0) -s|--search alsa|bluez|...
            search audio outputs with the value of this flag
-       $(basename $0) --set-speaker NUM
-           force the audio output on this output number
+       $(basename $0) --set NUM|-1|-b|--bluez
+           force the audio output on this output:
+               NUM          as returned by -l
+               -1           indicates the first result of -l
+               -b|--bluez   indicates the first match for /bluez/ (for bluetooth)
        $(basename $0) -v|--volume
            show volume for the currently selected output
        $(basename $0) -
@@ -19,15 +22,21 @@ usage: $(basename $0) -l|--list
 EOF
     exit 1
 }
+[[ "x$1" != "x-d" ]] || { set -x ; shift ; }
 case $1 in
--l|--list-speakers)
+-l|--list)
     pactl list short sinks ;;
--s|--search-speakers)
+--search)
     [ -n "$2" ] || usage "--search requires a value"
-    pactl list short sinks | awk '$2~/'$2'/{print$1}' ;;
---set-speaker)
-    [ -n "$2" ] || usage "--set requires a value"
-    pactl set-default-sink $2 ;;
+    pactl list short sinks | awk '$2~/'$2'/' ;;
+-s|--set)
+    id=$2
+    [ -n "$id" ] || usage "--set requires a value"
+    [ "x$id" != "x-1" ] || \
+        id=$(pactl list short sinks | awk 'NR==1{print$1}')
+    [ "x$id" != "x-b" -a "x$id" != "x--bluez" ] || \
+        id=$(pactl list short sinks | awk '/bluez/{print$1;exit;}')
+    pactl set-default-sink "$id" ;;
 -v|--volume) pactl get-sink-volume @DEFAULT_SINK@ | awk 'NR==1{print"L "$5" R "$12}' ;;
 +)  pactl set-sink-volume @DEFAULT_SINK@ $increase ;;
 -)  pactl set-sink-volume @DEFAULT_SINK@ $decrease ;;

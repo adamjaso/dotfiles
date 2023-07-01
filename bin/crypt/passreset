@@ -1,0 +1,5 @@
+#!/bin/bash -x
+path=$1
+pass $path | pass insert -m $path.last
+pass generate $path -nc 19
+pass insert $path

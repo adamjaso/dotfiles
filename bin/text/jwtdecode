@@ -1,0 +1,5 @@
+#!/bin/sh
+[ "$1" = "-" ] && jwt=$(cat) || jwt=$1
+jwt=${jwt#*.}
+jwt=${jwt%.*}
+echo "$jwt=" | base64 -d

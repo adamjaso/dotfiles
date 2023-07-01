@@ -1,0 +1,7 @@
+#!/bin/sh
+swaylockconf=/home/ajaso/.config/sway/config 
+swayidle -w \
+          timeout 600 "swaylock -C $swaylockconf -f" \
+          timeout 660 'swaymsg "output * dpms off"' \
+          resume 'swaymsg "output * dpms on"' \
+          before-sleep "swaylock -C $swaylockconf -f"

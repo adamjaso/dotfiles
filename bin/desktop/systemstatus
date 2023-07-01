@@ -1,0 +1,35 @@
+#!/bin/bash
+convert() {
+    val=$1
+    [ $val -gt 1000000 ] && { echo $((val/1000000))M ; return 0 ; }
+    [ $val -gt 1000 ] && { echo $((val/1000))K ; return 0 ; }
+    echo ${val}B ; return 0 ;
+}
+while true; do
+    network=
+    netindex=0 ; for ifname in eth0 wg0 wlan0 ; do
+        netstats=/sys/class/net/$ifname
+        [ -d $netstats ] && [ "$(cat $netstats/carrier 2>/dev/null)" = "1" ] && {
+            network=$network$(ip -o -4 addr show $ifname 2>/dev/null | awk '{print$2" "$4}')
+            read rx < $netstats/statistics/rx_bytes 2>/dev/null
+            read tx < $netstats/statistics/tx_bytes 2>/dev/null
+            [ "$ifname" = wlan0 ] && ssid='"'$(iwgetid -r)'" ' || ssid=
+            network=$network' '$(printf "${ssid}rx %4s  tx %4s" $(convert $((rx-rxlast[netindex]))) $(convert $((tx-txlast[netindex]))))' | '
+            rxlast[netindex]=$rx
+            txlast[netindex]=$tx
+        }
+        netindex=$((netindex+1))
+    done
+    volume=$(pactl get-sink-volume @DEFAULT_SINK@ | awk -F/ 'NR==1{gsub(" ","",$2);gsub(" ","",$4);print $2==$4 ? "vol "$2 : "vol L "$2" R "$4}')
+    volume=$volume"$(pactl get-sink-mute @DEFAULT_SINK@ | awk '$2=="yes"{print" M"}')"
+    volume=$volume"$(pactl get-default-sink | awk '$1~/bluez/{print " bt"}')"
+    brightness=$(brightnessctl -d amdgpu_bl0 -m | awk -F, '{print"light "$4}')
+    battery=$(acpi -b | awk -F, '{print"bat"$2}')
+    date=$(date +'%Y-%m-%d %l:%M:%S %p')
+    load=$(uptime | awk -F'load average:' '{print$2}')
+    disk=$(df -h | awk '$6=="/"{print$3" / "$2" ("$5")"}')
+    mem=$(free -m | awk '$1=="Mem:"{print$3" / "$2" ("int($3/$2*100)"%)"}')
+    #ticker=$(ticker.sh ETH-USD)
+    echo -n "${ticker} | ${network}mem $mem | disk $disk | load $load | $volume | $brightness | $battery | $date"
+    sleep 1;
+done

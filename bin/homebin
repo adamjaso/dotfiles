@@ -1,0 +1,3 @@
+#!/bin/sh
+[ -n "$1" ] || { echo "usage: $(basename $0) PATH" ; exit 1 ; }
+ln -nfs $PWD/$1 ~/bin/$(basename $1)

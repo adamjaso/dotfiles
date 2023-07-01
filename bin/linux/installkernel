@@ -1,0 +1,101 @@
+#!/bin/sh
+
+# Just in case... If you need to get the latest kernel release version
+#
+# git ls-remote --tags git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git | \
+#   awk -F/ '$3~/^v[0-9.]+$/{sub("v","",$3);print$3}' | \
+#   awk -F. '{printf"%02d.%03d.%03d v%s\n",$1,$2,$3,$0}' | \
+#   sort | \
+#   awk 'END{print $2}'
+
+logprefix() {
+    echo "=> $(date +"%H:%M:%S")"
+}
+
+usage() {
+    [ -z "${1}" ] || echo "$(logprefix) ${1}"
+
+    echo "usage: $(basename $0) [INSTALLDIR]"
+    echo "  INSTALLDIR is the directory where kernel files are loaded at boot,"
+    echo "    i.e. /boot. The default is /boot."
+    echo
+    echo "  This reads './include/config/kernel.release' to create the kernel"
+    echo "  artifact filenames in INSTALLDIR, i.e. INSTALLDIR/vmlinuz-KERNELRELEASE"
+    echo
+    echo "  This also renames any existing kernel of the same name by appending"
+    echo "  '.old' to the name."
+    echo
+    exit 1
+}
+
+confirm() {
+    read -p "$(logprefix) ${1} (Y/n/s/b) " ok
+    case "${ok}" in
+        n) echo "$(logprefix) user declined. exiting." ; exit 1 ;;
+        s) return 1 ;;
+        b) doas env PS1="($(basename ${0})) ${PS1}" bash ;;
+    esac
+    return 0
+}
+
+download_kernel() {
+    local latest_version=$(
+        git ls-remote --tags git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git | \
+            awk -F/ '$3~/^v[0-9.]+$/{sub("v","",$3);print$3}' | \
+            awk -F. '{printf"%02d.%03d.%03d %s\n",$1,$2,$3,$0}' | \
+            sort | \
+            awk 'END{print $2}'
+    )
+    if confirm "Latest kernel version is ${latest_version}. Continue?"
+    then
+        wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${latest_version}.tar.xz
+        tar -xJf linux-${latest_version}.tar.xz
+        cd linux-${latest_version}
+        cp /boot/config-$(uname -r) .config
+    else
+        usage "Declined latest version. Nothing else to do. Exiting."
+    fi
+}
+
+installdir=${1:-/boot}
+kernelreleasefile=./include/config/kernel.release
+[ -f ./Kconfig ] || download_kernel
+
+if confirm "Update kernel config (make menuconfig)?"
+then
+    cp -v "${installdir}/config-$(uname -r)" .config
+    make menuconfig
+fi
+
+if confirm "Build kernel (make -j$(nproc))? "
+then
+    make -j$(nproc)
+fi
+
+[ -f "${kernelreleasefile}" ] || usage "Kernel release file not found."
+version=$(cat "${kernelreleasefile}")
+[ -n "$version" ] && [ -d "$installdir" ] || usage
+df -h "${installdir}"
+confirm "Does install directory have enough space? If not, choose 'b' and clean it up or say 'n'. "
+
+if confirm "Ready to install?"
+then
+    doas make modules_install
+    for name in vmlinuz System.map config ; do
+        target=
+        case $name in
+        vmlinuz)    target=arch/x86_64/boot/bzImage ;;
+        System.map) target=System.map ;;
+        config)     target=.config ;;
+        *)          echo "Unknown file $name" ; continue ;;
+        esac
+        installfile=$installdir/$name-$version
+        [ ! -f $installfile ] || cp -v $installfile $installfile.old
+        doas cp -v $target $installfile
+    done
+fi
+
+if confirm "Update GRUB config?"
+then
+    doas grub-mkconfig -o ${installdir}/grub/grub.cfg
+fi

@@ -1,0 +1,129 @@
+#!/bin/sh
+
+action=$1
+target=$2
+conf=~/.config/bluetoothdevices.conf
+
+notify() {
+    local state=$1
+    logger "Bluetooth Headphones $addr $state"
+    if command -v notify-send >/dev/null 2>&1
+    then
+        notify-send -a Bluetooth "Headphones $target $state"
+    fi
+}
+
+stop() {
+    # Disconnect headphones
+    echo "> Disconnecting headphones..."
+    bluetoothctl disconnect $addr >/dev/null || :
+
+    # Stop bluealsa
+    echo "> Stopping bluealsa..."
+    doas rc-service bluealsa stop
+
+    # Stop bluetooth
+    echo "> Stopping bluetooth..."
+    doas rc-service bluetooth stop
+
+    # Check if bluetooth is enabled
+    btid=$(rfkill -n | awk '$2=="bluetooth"&&$4=="unblocked"{print$1}')
+
+    if [ -n "$btid" ]
+    then
+        echo "> Blocking bluetooth..."
+        doas rfkill block $btid
+    fi
+}
+
+start() {
+    # Check if bluetooth is enabled
+    btid=$(rfkill -n | awk '$2=="bluetooth"&&$4=="blocked"{print$1}')
+
+    if [ "$btid" != '' ]
+    then
+        echo "> Unblocking bluetooth..."
+        doas rfkill unblock $btid
+    fi
+
+    # Ensure that bluetooth service is enabled
+    rc-service bluetooth status | grep started -q || {
+        echo '> Restarting bluetooth...'
+        doas rc-service bluetooth restart ;
+    }
+
+    # Ensure that bluealsa is enabled
+    rc-service bluealsa status | grep started -q || {
+        echo '> Restarting bluealsa...' ;
+        doas rc-service bluealsa restart ;
+    }
+
+    # Disconnect if we have a stale connection
+    #disconnect
+    connect
+}
+
+disconnect() {
+    echo '> Disconnecting headphones...'
+    bluetoothctl disconnect $addr >/dev/null || :
+    set_bluetooth_audio off
+    notify disconnected
+}
+
+connect() {
+    # Try connecting and retry 3 times
+    echo '> Connecting headphones...'
+    n=0
+    bluetoothctl trust $addr
+    while bluetoothctl connect $addr | grep NotReady
+    do
+        sleep 2
+        [ $n -gt 2 ] && break || n=$((n+1))
+    done
+    set_bluetooth_audio on
+    notify connected
+}
+
+reconnect() {
+    disconnect
+    connect
+}
+
+set_bluetooth_audio() {
+    local state=$1
+    case $state in
+        on)  sinknum=$(pactl list short sinks | awk '/bluez/{print$1;exit;}') ;;
+        off) sinknum=$(pactl list short sinks | awk 'NR==1{print$1;exit;}') ;;
+        *)   echo "Only (on|off) are supported for set_bluetooth_audio!" ; return 1 ;;
+    esac
+    if [ ! -z "$sinknum" ]
+    then
+        pactl set-default-sink $sinknum
+    else
+        echo "Failed to find and enable bluetooth in pulseaudio!"
+    fi
+}
+
+[ -f $conf ] || {
+    echo "No bluetooth devices found in "$conf
+    exit 1
+}
+while read name addr ; do
+    if [ "$target" = "$addr" ]
+    then
+        target="$name"
+    fi
+    if [ "$target" = "$name" ]
+    then
+        case $action in
+            start|stop|connect|disconnect|reconnect) $action ;;
+            *) start ;;
+        esac
+        exit 0
+    fi
+done < $conf
+
+echo "No target device specified!"
+exit 1
+
+

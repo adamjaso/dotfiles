@@ -1,0 +1,7 @@
+#!/bin/bash
+aws --region $1 \
+ec2 \
+describe-instances \
+    --filters "Name=tag-key,Values=Name" \
+    --query 'Reservations[*].Instances[*].{Instance:InstanceId,AZ:Placement.AvailabilityZone,PublicIpAddress:PublicIpAddress,Name:Tags|[0].Value}' | \
+jq -r '.[][]|select(.PublicIpAddress!=null)|.Name+"\t"+.PublicIpAddress+"\t"+.AZ'

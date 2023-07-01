@@ -1,0 +1,60 @@
+#!/bin/bash -e
+bastion=$1
+url=$2
+shift ; shift ;
+scheme=${url%://*}
+url=${url#*://}
+userhost=${url%%/*}
+url=${url#*/}
+path=/${url}
+userpass=${userhost%@*}
+hostport=${userhost#*@}
+
+urld() { : ${*//+/ } ; printf '%b' "${_//%/\\x}" ; }
+_pass() { urld "${userpass#*:}" ; }
+_user() { urld "${userpass%:*}" ; }
+
+localhost=localhost
+case $scheme in
+    postgres)   localport=5433 ;;
+    redis)      localport=6380 ;;
+    vault)      localport=5001 ;;
+    *)          localport=7999 ;;
+esac
+
+echo ">>> forwarding to bastion $bastion..." >&2
+ssh -fNL "$localport:$hostport" -S "./$bastion.sock" \
+    -oControlMaster=true \
+    -oControlPersist=5s \
+    -oExitOnForwardFailure=yes \
+    -oStrictHostKeyChecking=no \
+    -oUserKnownHostsFile=/dev/null \
+    "$bastion"
+echo ">>> forwarded to bastion $bastion OK" >&2
+echo ">>> connecting to forwarded $scheme port $localport..." >&2
+ssh -S ./$bastion.sock -O check $bastion >&2
+trap "ssh -S ./$bastion.sock -O exit $bastion" 0 15
+case $scheme in
+    postgres)
+        env PSQL_HISTORY=/dev/null PGCONNECT_TIMEOUT=10 \
+        psql -P 'pager=off' "$scheme://$userpass@$localhost:$localport$path" ;;
+    redis)
+        env REDISCLI_AUTH="$(_pass)" \
+        redis-cli -h $localhost -p $localport ;;
+    vault)
+        VAULT_PASSWORD=$(_pass)
+        [ -n "$VAULT_PASSWORD" ] || read -s -p "Password: " VAULT_PASSWORD
+        env VAULT_USERNAME="$(_user)" VAULT_PASSWORD="${VAULT_PASSWORD}" \
+            VAULT_URL=https://$localhost:$localport VAULT_PATH=v1 \
+            vault.sh -k $@ ;;
+    *)
+        curl -vk "$scheme://$userpass@$localhost:$localport$path" ;;
+esac
+echo ">>> cleaning up ssh forward..." >&2
+ssh -S ./$bastion.sock -O 'exit' $bastion || :
+ssh -S ./$bastion.sock -O 'check' $bastion 2>/dev/null
+if [ $? -eq 0 ] ; then
+    echo "SSH is still running. Run 'ssh -S ./$bastion.sock -O check $bastion' to investigate further." >&2
+else
+    echo ">>> exited." >&2
+fi

@@ -1,0 +1,2 @@
+#!/bin/sh
+docker inspect $1 | jq -r .[].NetworkSettings.Networks[].IPAddress

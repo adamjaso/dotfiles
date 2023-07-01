@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+import sys, csv, argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("-i", "--insep", default=",")
+parser.add_argument("-o", "--outsep", default=" ")
+parser.add_argument("-H", "--header", action="store_true", default=False)
+parser.add_argument("-E", "--eol", default="\n")
+parser.add_argument("-Q", "--quote", default='"')
+parser.add_argument("cols", nargs="*", type=int)
+args = parser.parse_args()
+w = csv.writer(sys.stdout, delimiter=args.outsep, lineterminator=args.eol, quotechar=args.quote)
+if args.header:
+    next(sys.stdin)
+for r in csv.reader(sys.stdin, delimiter=args.insep, lineterminator=args.eol):
+    if len(args.cols):
+        w.writerow((r[i] for i in args.cols))
+    else:
+        w.writerow(r)

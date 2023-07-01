@@ -1,0 +1,8 @@
+#!/bin/sh
+region=$1
+host=$2
+[ -n "$region" ] && [ -n "$host" ] || \
+    { echo "usage: $(basename $0) AWS_REGION DOCKER_REGISTRY_HOST" ; exit 1 ; }
+aws --region $region ecr get-authorization-token | \
+    jq -r '.authorizationData[0].authorizationToken' | \
+    base64 -d | cut -d: -f2 | docker login --password-stdin --username AWS $host
