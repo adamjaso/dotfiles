@@ -1,0 +1,47 @@
+#!/bin/sh
+
+set -e
+
+usage() {
+    echo "USAGE: $(basename $0) [prepare|cleanup] TARGET_DIRECTORY"
+    exit 1
+}
+
+prepare() {
+    mkdir -p $proc
+    mount -t proc proc $proc
+
+    mkdir -p $sys
+    mount --rbind /sys $sys
+    mount --make-rslave $sys
+
+    mkdir -p $dev
+    mount --rbind /dev $dev
+    mount --make-rslave $dev
+}
+
+cleanup() {
+    set +e
+    umount -R $target
+    rmdir $proc
+    rmdir $sys
+    rmdir $dev
+}
+
+action=$1
+target=$2
+[ -n "$target" ] || { echo "[prepare|cleanup] is required" ; usage ; }
+[ -n "$target" ] || { echo "TARGET_DIRECTORY is required" ; usage ; }
+
+proc=$target/proc
+sys=$target/sys
+dev=$target/dev
+bin=$target/bin
+sbin=$target/sbin
+
+set -x
+case $action in
+    prepare) prepare ;;
+    cleanup) cleanup ;;
+    *) usage ;;
+esac

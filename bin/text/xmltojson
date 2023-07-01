@@ -1,0 +1,3 @@
+#!/usr/bin/env python
+import xmltodict, sys, json
+print json.dumps(xmltodict.parse(sys.stdin.read()))
