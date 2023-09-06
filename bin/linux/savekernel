@@ -1,0 +1,76 @@
+#!/bin/bash -e
+
+localversion() {
+    awk -F= '/^CONFIG_LOCALVERSION/{gsub("\"","");print$2}' "${1}"
+}
+
+if [ -d "${1}" ]
+then
+    wd="$(realpath "${1}")"
+else
+    wd="${PWD}"
+fi
+
+if [ -f "${wd}/.config" ]
+then
+    current="${wd}/.config"
+    version="$(find "${wd}" -name kernel.release -exec cat {} \;)"
+elif [ -f "${1}" ] && [[ "${1}" = "linux-"*".config" ]] 
+then
+    current="$(realpath ${1})"
+    version="${1%.config}"
+    version="${version#linux-}"
+    localname="$(localversion "${current}")"
+    version="${version}${localname}"
+elif [ -f "${1}" ] && [[ "${1}" = "/boot/config-"*"-"* ]] 
+then
+    current="$(realpath ${1})"
+    version="${1#*/config-}"
+else
+    current="/boot/config-$(uname -r)"
+    version="$(uname -r)"
+fi
+
+dir="$(dirname "$0")"
+hostname=$(hostname)
+arch="$(uname -m)"
+localname="${version#*-}"
+kernelversion="${version%%-*}"
+configname="${hostname}-${localname}"
+filename="${configname}.config"
+details="${configname}.txt"
+
+detailsfile() {
+    echo "timestamp             $(date +"%Y-%m-%d %H:%M:%S")"
+    echo "version               ${version}"
+    echo "arch                  ${arch}"
+    echo "hostname              $(hostname)"
+    for f in /sys/devices/virtual/dmi/id/{sys_vendor,product_{family,version,name},bios_version}
+    do
+        printf "%-20s  %s\n" "$(basename "${f}")" "$(cat ${f})"
+    done
+}
+
+pushd "${dir}" >/dev/null
+    read -p "Updating config '${filename}' from '${current}'. OK? (Y/n) " yn
+    if [ "${yn}" = "n" ]
+    then
+        echo "User declined. Exiting." >&2
+        exit 1
+    fi
+
+    cp -v "${current}" "${filename}"
+    if [ -z "$(git ls-files --other --exclude-standard --directory)"  ]
+    then
+        echo "No changes." >&2
+        exit 0
+    else
+        pwd
+        detailsfile > "${details}"
+        git reset
+        git add "${filename}" "${details}"
+        git commit -o "${filename}" "${details}" -m "Updated ${configname} to version ${version}"
+        git tag "${kernelversion}-${configname}"
+        echo "${kernelversion}-${configname} tagged" >&2
+    fi
+popd >/dev/null

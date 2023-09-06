@@ -90,7 +90,7 @@ then
         *)          echo "Unknown file $name" ; continue ;;
         esac
         installfile=$installdir/$name-$version
-        [ ! -f $installfile ] || cp -v $installfile $installfile.old
+        [ ! -f $installfile ] || doas cp -v $installfile $installfile.old
         doas cp -v $target $installfile
     done
 fi
