@@ -21,9 +21,10 @@ do
 done
 echo
 
-size=s-2vcpu-4gb
+size=s-1vcpu-512mb-10gb
 echo Sizes:
 cat <<EOF
+s-1vcpu-512mb-10gb
 s-1vcpu-1gb
 s-3vcpu-1gb
 s-2vcpu-4gb
@@ -37,10 +38,9 @@ do
     [ -z "$_size" ] || size=$_size
 done
 
-region=
+region=sfo3
 if [ -z "$region" ]
 then
-    region=sfo2
     echo
     echo Regions:
     doctl compute region ls --no-header
