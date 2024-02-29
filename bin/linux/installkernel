@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Just in case... If you need to get the latest kernel release version
 #
@@ -15,9 +15,8 @@ logprefix() {
 usage() {
     [ -z "${1}" ] || echo "$(logprefix) ${1}"
 
-    echo "usage: $(basename $0) [INSTALLDIR]"
-    echo "  INSTALLDIR is the directory where kernel files are loaded at boot,"
-    echo "    i.e. /boot. The default is /boot."
+    echo "usage: $(basename $0) [CONFIGFILE]"
+    echo "  CONFIGFILE is the config file where to be used"
     echo
     echo "  This reads './include/config/kernel.release' to create the kernel"
     echo "  artifact filenames in INSTALLDIR, i.e. INSTALLDIR/vmlinuz-KERNELRELEASE"
@@ -51,19 +50,21 @@ download_kernel() {
         wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${latest_version}.tar.xz
         tar -xJf linux-${latest_version}.tar.xz
         cd linux-${latest_version}
-        cp /boot/config-$(uname -r) .config
     else
         usage "Declined latest version. Nothing else to do. Exiting."
     fi
 }
 
-installdir=${1:-/boot}
+installdir=/boot
+configfile="${1:-"${installdir}/config-$(uname -r)"}"
 kernelreleasefile=./include/config/kernel.release
 [ -f ./Kconfig ] || download_kernel
+[ -f "${configfile}" ] || usage "configfile ${configfile} not found"
 
+echo "$(logprefix) using config ${configfile}"
 if confirm "Update kernel config (make menuconfig)?"
 then
-    cp -v "${installdir}/config-$(uname -r)" .config
+    cp -v "${configfile}" .config
     make menuconfig
 fi
 
@@ -98,4 +99,12 @@ fi
 if confirm "Update GRUB config?"
 then
     doas grub-mkconfig -o ${installdir}/grub/grub.cfg
+fi
+
+if [ -f ../kernelconfig/updatekernel.sh ]
+then
+    kerneldir="$PWD"
+    pushd ../kernelconfig
+        ./updatekernel.sh $kerneldir
+    popd
 fi
