@@ -286,7 +286,7 @@ def psql_command(
         print(psql_command, file=sys.stderr)
     env = {name: value for name, value in os.environ.items()}
     env.update(psql_env)
-    return subprocess.Popen(psql_command, env=env)
+    return subprocess.Popen(psql_command, env=env, stdin=sys.stdin)
 
 
 def redis_command(
