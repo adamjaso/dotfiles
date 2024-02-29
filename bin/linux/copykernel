@@ -1,0 +1,10 @@
+#!/bin/bash -xe
+version=$(cat ./include/config/kernel.release)
+rootdir=${1:-/}
+bootdir=${rootdir}boot
+mkdir -vp ${rootdir}
+mkdir -vp ${bootdir}
+cp -vL ./arch/x86_64/boot/bzImage  ${bootdir}/vmlinuz-${version}
+cp -v                ./System.map  ${bootdir}/System.map-${version}
+cp -v                   ./.config  ${bootdir}/config-${version}
+make modules_install INSTALL_MOD_PATH=${rootdir}
