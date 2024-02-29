@@ -7,14 +7,14 @@ convert() {
 }
 while true; do
     network=
-    netindex=0 ; for ifname in eth0 wg0 wlan0 ; do
+    netindex=0 ; for ifname in eth0 eth1 wg0 wlan0 ; do
         netstats=/sys/class/net/$ifname
         [ -d $netstats ] && [ "$(cat $netstats/carrier 2>/dev/null)" = "1" ] && {
             network=$network$(ip -o -4 addr show $ifname 2>/dev/null | awk '{print$2" "$4}')
             read rx < $netstats/statistics/rx_bytes 2>/dev/null
             read tx < $netstats/statistics/tx_bytes 2>/dev/null
             [ "$ifname" = wlan0 ] && ssid='"'$(iwgetid -r)'" ' || ssid=
-            network=$network' '$(printf "${ssid}rx %4s  tx %4s" $(convert $((rx-rxlast[netindex]))) $(convert $((tx-txlast[netindex]))))' | '
+            network=$network' '$(printf "${ssid}r %4s t %4s" $(convert $((rx-rxlast[netindex]))) $(convert $((tx-txlast[netindex]))))' | '
             rxlast[netindex]=$rx
             txlast[netindex]=$tx
         }
@@ -29,7 +29,8 @@ while true; do
     load=$(uptime | awk -F'load average:' '{print$2}')
     disk=$(df -h | awk '$6=="/"{print$3" / "$2" ("$5")"}')
     mem=$(free -m | awk '$1=="Mem:"{print$3" / "$2" ("int($3/$2*100)"%)"}')
+    uname=$(uname -r)
     #ticker=$(ticker.sh ETH-USD)
-    echo -n "${ticker} | ${network}mem $mem | disk $disk | load $load | $volume | $brightness | $battery | $date"
+    echo -n "${ticker} | ${network}mem $mem | disk $disk | load $load | $volume | $brightness | $battery | $uname | $date"
     sleep 1;
 done
