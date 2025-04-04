@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 usage() {
     echo $1
@@ -27,7 +27,8 @@ sysctl -a 2>/dev/null | grep -q 'net.ipv4.ip_forward = 1' || usage "You must hav
 
 change() {
     flag=$1
-    iptables -t nat $flag POSTROUTING -o "$primary" -j MASQUERADE || showerr "MASQUERADE rule failed"
+    [ "$flag" = "-A" ] && masqflag=(-I 1) || masqflag=$flag
+    iptables -t nat $masqflag POSTROUTING -o "$primary" -j MASQUERADE || showerr "MASQUERADE rule failed"
     iptables $flag FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT || showerr "FORWARD conntrack rule failed"
     iptables $flag FORWARD -i "$secondary" -o "$primary" -j ACCEPT || showerr "FORWARD $secondary to $primary failed"
 }
