@@ -1,0 +1,17 @@
+vim.g.mapleader = '\\'
+vim.g.maplocalleader = '\\'
+vim.opt.showcmd = true
+vim.opt.laststatus = 2
+vim.opt.autowrite = true
+--vim.opt.cursorline = true
+vim.opt.autoread = true
+vim.opt.smarttab = true
+--vim.opt.list = true
+vim.opt.hlsearch = true
+vim.opt.number = true
+vim.opt.expandtab = true
+vim.opt.autoindent = true
+vim.opt.smartindent = true
+vim.opt.backspace = 'indent,eol,start'
+vim.opt.background = 'dark'
+vim.opt.shiftwidth = 4
