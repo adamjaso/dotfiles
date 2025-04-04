@@ -1,5 +1,13 @@
 #!/bin/bash -e
 
+# This script will save the current kernel config and system details to a git repo
+#
+# It checks
+# (1) for `.config' in the current working directory
+# (2) arg "${1}" named `*/linux-*.config'
+# (3) arg "${1}" named `/boot/config-*-*'
+# (4) otherwise, just save `/boot/config-$(uname -r)'
+
 localversion() {
     awk -F= '/^CONFIG_LOCALVERSION/{gsub("\"","");print$2}' "${1}"
 }
@@ -15,20 +23,24 @@ if [ -f "${wd}/.config" ]
 then
     current="${wd}/.config"
     version="$(find "${wd}" -name kernel.release -exec cat {} \;)"
-elif [ -f "${1}" ] && [[ "${1}" = "linux-"*".config" ]] 
+    echo "Using ${wd}/.config ..." >&2
+elif [ -f "${1}" ] && [[ "${1}" = *"/linux-"*".config" ]]
 then
     current="$(realpath ${1})"
     version="${1%.config}"
-    version="${version#linux-}"
+    version="${version#*linux-}"
     localname="$(localversion "${current}")"
     version="${version}${localname}"
-elif [ -f "${1}" ] && [[ "${1}" = "/boot/config-"*"-"* ]] 
+    echo "Using ${current} (version=${version}, localname=${localname}) ..." >&2
+elif [ -f "${1}" ] && [[ "${1}" = "/boot/config-"*"-"* ]]
 then
     current="$(realpath ${1})"
     version="${1#*/config-}"
+    echo "Using ${current} ..." >&2
 else
     current="/boot/config-$(uname -r)"
     version="$(uname -r)"
+    echo "Using ${current} ..." >&2
 fi
 
 dir="$(dirname "$0")"
@@ -51,26 +63,28 @@ detailsfile() {
     done
 }
 
-pushd "${dir}" >/dev/null
-    read -p "Updating config '${filename}' from '${current}'. OK? (Y/n) " yn
-    if [ "${yn}" = "n" ]
-    then
-        echo "User declined. Exiting." >&2
-        exit 1
-    fi
+read -p "Updating config '${filename}' from '${current}'. OK? (Y/n) " yn
+if [ "${yn}" = "n" ]
+then
+    echo "User declined. Exiting." >&2
+    exit 1
+fi
 
-    cp -v "${current}" "${filename}"
-    if [ -z "$(git ls-files --other --exclude-standard --directory)"  ]
-    then
-        echo "No changes." >&2
-        exit 0
-    else
-        pwd
-        detailsfile > "${details}"
-        git reset
-        git add "${filename}" "${details}"
-        git commit -o "${filename}" "${details}" -m "Updated ${configname} to version ${version}"
-        git tag "${kernelversion}-${configname}"
-        echo "${kernelversion}-${configname} tagged" >&2
-    fi
-popd >/dev/null
+cp -av "${current}" "${filename}"
+detailsfile > "${details}"
+git reset
+git add "${filename}" "${details}"
+git commit -o "${filename}" "${details}" -m "Updated ${configname} to version ${version}"
+git status
+if ! git tag | grep -qF "${version}"
+then
+    echo "Tag ${version} already exists." >&2
+fi
+read -p 'OK? (Y/n) ' yn
+if [ "${yn}" = "n" ]
+then
+    echo "User declined. Exiting." >&2
+    exit 1
+fi
+git tag "${kernelversion}-${configname}"
+echo "${kernelversion}-${configname} tagged" >&2
