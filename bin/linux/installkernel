@@ -15,7 +15,7 @@ logprefix() {
 usage() {
     [ -z "${1}" ] || echo "$(logprefix) ${1}"
 
-    echo "usage: $(basename $0) [CONFIGFILE]"
+    echo "usage: $(basename "${0}") [CONFIGFILE]"
     echo "  CONFIGFILE is the config file where to be used"
     echo
     echo "  This reads './include/config/kernel.release' to create the kernel"
@@ -28,28 +28,31 @@ usage() {
 }
 
 confirm() {
-    read -p "$(logprefix) ${1} (Y/n/s/b) " ok
+    read -r -p "$(logprefix) ${1} (Y/n/s/b) " ok
     case "${ok}" in
         n) echo "$(logprefix) user declined. exiting." ; exit 1 ;;
         s) return 1 ;;
-        b) doas env PS1="($(basename ${0})) ${PS1}" bash ;;
+        b) doas env PS1="($(basename "${0}")) ${PS1}" bash ;;
     esac
     return 0
 }
 
 download_kernel() {
-    local latest_version=$(
+    local latest_version=
+    latest_version="$(
         git ls-remote --tags git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git | \
             awk -F/ '$3~/^v[0-9.]+$/{sub("v","",$3);print$3}' | \
             awk -F. '{printf"%02d.%03d.%03d %s\n",$1,$2,$3,$0}' | \
             sort | \
             awk 'END{print $2}'
-    )
+    )"
     if confirm "Latest kernel version is ${latest_version}. Continue?"
     then
-        wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${latest_version}.tar.xz
-        tar -xJf linux-${latest_version}.tar.xz
-        cd linux-${latest_version}
+        local major_version=
+        major_version="${latest_version%%.*}"
+        wget https://cdn.kernel.org/pub/linux/kernel/v"${major_version}".x/linux-"${latest_version}".tar.xz
+        tar -xJf linux-"${latest_version}".tar.xz
+        cd linux-"${latest_version}" || exit 1
     else
         usage "Declined latest version. Nothing else to do. Exiting."
     fi
@@ -70,12 +73,14 @@ fi
 
 if confirm "Build kernel (make -j$(nproc))? "
 then
-    make -j$(nproc)
+    make -j"$(nproc)"
 fi
 
 [ -f "${kernelreleasefile}" ] || usage "Kernel release file not found."
-version=$(cat "${kernelreleasefile}")
-[ -n "$version" ] && [ -d "$installdir" ] || usage
+version="$(cat "${kernelreleasefile}")"
+if [ -z "${version}" ] || ! [ -d "${installdir}" ] ; then
+    usage
+fi
 df -h "${installdir}"
 confirm "Does install directory have enough space? If not, choose 'b' and clean it up or say 'n'. "
 
@@ -90,21 +95,26 @@ then
         config)     target=.config ;;
         *)          echo "Unknown file $name" ; continue ;;
         esac
-        installfile=$installdir/$name-$version
-        [ ! -f $installfile ] || doas cp -v $installfile $installfile.old
-        doas cp -v $target $installfile
+        installfile="${installdir}/${name}-${version}"
+        [ ! -f "${installfile}" ] || doas cp -v "${installfile}" "${installfile}".old
+        doas cp -v "${target}" "${installfile}"
     done
+fi
+
+if which dracut 2>/dev/null
+then
+    if confirm "Update initramfs?"
+    then
+        doas dracut -f --hostonly --kver "${version}"
+    fi
 fi
 
 if confirm "Update GRUB config?"
 then
-    doas grub-mkconfig -o ${installdir}/grub/grub.cfg
+    doas grub-mkconfig -o "${installdir}/grub/grub.cfg"
 fi
 
-if [ -f ../kernelconfig/updatekernel.sh ]
+if [ -d ../kernelconfig ]
 then
-    kerneldir="$PWD"
-    pushd ../kernelconfig
-        ./updatekernel.sh $kerneldir
-    popd
+    cp -avn .config ../kernelconfig/linux-"${version}"-"$(date --utc +'%Y%m%d%H%M%S')".config
 fi
