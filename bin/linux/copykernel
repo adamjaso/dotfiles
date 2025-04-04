@@ -1,10 +1,13 @@
-#!/bin/bash -xe
+#!/bin/bash
+[ $(id -u) -eq 0 ] || { echo "you must run this as root" >&2; echo "usage: $(basename $0) [ROOTDIR [-f]]" >&2; exit 1; }
+set -ex
 version=$(cat ./include/config/kernel.release)
 rootdir=${1:-/}
 bootdir=${rootdir}boot
+[[ "x${2}" = "x-f" ]] && force= || force=-n
 mkdir -vp ${rootdir}
 mkdir -vp ${bootdir}
-cp -vL ./arch/x86_64/boot/bzImage  ${bootdir}/vmlinuz-${version}
-cp -v                ./System.map  ${bootdir}/System.map-${version}
-cp -v                   ./.config  ${bootdir}/config-${version}
+cp ${force} -vL ./arch/x86_64/boot/bzImage  ${bootdir}/vmlinuz-${version}
+cp ${force} -v                ./System.map  ${bootdir}/System.map-${version}
+cp ${force} -v                   ./.config  ${bootdir}/config-${version}
 make modules_install INSTALL_MOD_PATH=${rootdir}
