@@ -52,10 +52,8 @@ download_kernel() {
         major_version="${latest_version%%.*}"
         wget https://cdn.kernel.org/pub/linux/kernel/v"${major_version}".x/linux-"${latest_version}".tar.xz
         tar -xJf linux-"${latest_version}".tar.xz
-        cd linux-"${latest_version}" || exit 1
-    else
-        usage "Declined latest version. Nothing else to do. Exiting."
     fi
+    cd linux-"${latest_version}" || exit 1
 }
 
 installdir=/boot
