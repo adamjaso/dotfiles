@@ -5,6 +5,8 @@ vim.keymap.set('n', '<c-h>', ':wincmd h<CR>')
 vim.keymap.set('n', '<c-l>', ':wincmd l<CR>')
 
 vim.keymap.set('n', '<leader>ne', ':NvimTreeFindFileToggle')
+--vim.keymap.set('n', '<leader>xx', function() require('trouble').toggle() end)
+--vim.keymap.set('n', '<leader>xx', require('trouble').toggle)
 vim.keymap.set('n', '<leader>xx', ':Trouble diagnostics<CR>')
 vim.keymap.set('n', '<leader>bb', ':BlameToggle virtual<CR>')
 vim.keymap.set("n", "<leader>a", '<cmd>AerialToggle!<CR>')

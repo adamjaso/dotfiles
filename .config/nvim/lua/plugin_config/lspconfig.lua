@@ -41,30 +41,46 @@ lspconfig.pylsp.setup{
 } --pip install python-lsp-server
 lspconfig.volar.setup{
   filetypes = {'typescript', 'javascript', 'javascriptreact', 'typescriptreact', 'vue', 'json'},
+  --version = "2.2.8",
   init_options = {
+    vue = {
+      hybridMode = false,
+    },
     typescript = {
       -- replace with your global TypeScript library path
-      tsdk = '/usr/lib/node_modules/typescript/lib'
+      -- npm --prefix ~/.local/lib install typescript
+      tsdk = '/home/ajaso/.local/lib/node_modules/typescript/lib',
     }
   }
 }
 --lspconfig.vuels.setup{ }
-lspconfig.ts_ls.setup{
-  init_options = {
-    plugins = {
-      {
-        name = "@vue/typescript-plugin",
-        location = "/usr/lib/node_modules/@vue/typescript-plugin",
-        languages = {"javascript", "typescript", "vue"},
-      },
-    },
-  },
-  filetypes = {
-    "javascript",
-    "typescript",
-    "vue",
-  },
-}
+--local vue_language_server = "/home/ajaso/.local/lib/node_modules/@vue/language-server/bin/vue-language-server.js"
+--lspconfig.ts_ls.setup{
+--  init_options = {
+--    plugins = {
+--      -- mkdir -p ~/.local/lib
+--      -- npm --prefix ~/.local/lib install @vue/language-server
+--      -- npm --prefix .local/lib/ install @vue/language-plugin-pug
+--      {
+--        name = "@vue/typescript-plugin",
+--        location = vue_language_server,
+--        languages = {"vue"},
+--      },
+--      {
+--        name = "@vue/typescript-plugin-pug",
+--        location = vue_language_server,
+--        languages = {"vue"},
+--      },
+--    },
+--  },
+--  filetypes = {
+--    "vue",
+--    "typescript",
+--    "javascript",
+--    "javascriptreact",
+--    "typescriptreact",
+--  },
+--}
 
 -- Global mappings.
 -- See `:help vim.diagnostic.*` for documentation on any of the below functions
@@ -75,7 +91,6 @@ vim.keymap.set('n', '<space>q', vim.diagnostic.setloclist)
 
 -- Autoformat on save
 vim.api.nvim_create_augroup('AutoFormatting', {})
-
 -- Golang -- https://www.reddit.com/r/neovim/comments/y9qv1w/autoformatting_on_save_with_vimlspbufformat_and/
 vim.api.nvim_create_autocmd('BufWritePre', {
   pattern = '*.go',
@@ -84,7 +99,6 @@ vim.api.nvim_create_autocmd('BufWritePre', {
     vim.lsp.buf.format({ async = false })
   end,
 })
-
 -- Python -- https://stackoverflow.com/questions/77466697/how-to-automatically-format-on-save
 vim.api.nvim_create_autocmd('BufWritePost', {
     pattern = '*.py',
@@ -93,6 +107,37 @@ vim.api.nvim_create_autocmd('BufWritePost', {
         vim.cmd('silent !black --quiet %')            
         vim.cmd('edit')
     end,
+})
+
+-- gotmpl -- https://michenriksen.com/notes/nvim-go-template-syntax-highlighting/
+vim.api.nvim_create_autocmd({ 'BufRead', 'BufNewFile' }, {
+  group = vim.api.nvim_create_augroup('gotmpl_highlight', { clear = true }),
+  pattern = '*.tmpl',
+  callback = function()
+    local filename = vim.fn.expand('%:t')
+    local ext = filename:match('.*%.(.-)%.tmpl$')
+
+	-- Add more extension to syntax mappings here if you need to.
+    local ext_filetypes = {
+      go = 'go',
+      html = 'html',
+      md = 'markdown',
+      yaml = 'yaml',
+      yml = 'yaml',
+    }
+
+    if ext and ext_filetypes[ext] then
+      -- Set the primary filetype
+      vim.bo.filetype = ext_filetypes[ext]
+
+      -- Define embedded Go template syntax
+      vim.cmd([[
+        syntax include @gotmpl syntax/gotmpl.vim
+        syntax region gotmpl start="{{" end="}}" contains=@gotmpl containedin=ALL
+        syntax region gotmpl start="{%" end="%}" contains=@gotmpl containedin=ALL
+      ]])
+    end
+  end,
 })
 
 -- Use LspAttach autocommand to only map the following keys
