@@ -1,4 +1,14 @@
 #!/usr/bin/env python3
+#
+# Go list dependencies:
+#
+#  Several ways to inspect the tree of Golang go.mod dependencies.
+#  List dependencies using `go list`
+#  ```
+#  go list -f '{{ range .Deps }}{{$.ImportPath}} {{.}}'$'\n''{{end}}'
+#  ```
+#  Read output of `go list` above and print the tree as json.
+
 import re
 import sys
 import json
@@ -13,11 +23,15 @@ for line in sys.stdin:
     alldeps[parts[0]].add(parts[1])
 
 
-def build_tree(children):
+cache = {}
+
+
+def build_tree(children, c):
     childdeps = {}
     for child in children:
+        print(' '*c, child, file=sys.stderr)
         if child in alldeps:
-            childdeps[child] = build_tree(alldeps[child])
+            childdeps[child] = build_tree(alldeps[child], c+1)
         else:
             childdeps[child] = None
     return childdeps
@@ -25,9 +39,9 @@ def build_tree(children):
 
 tree = {}
 for parent, children in alldeps.items():
-    tree[parent] = build_tree(children)
+    tree[parent] = build_tree(children, 1)
 
 if len(sys.argv) > 1:
-    json.dump({child: tree[child] for child in sys.argv[1:]}, sys.stdout, indent=2)
+    json.dump({child: tree[child] for child in sys.argv[1:]}, sys.stdout, indent=2, default=str)
 else:
     json.dump(tree, sys.stdout, indent=2)

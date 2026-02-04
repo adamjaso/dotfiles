@@ -28,7 +28,7 @@ case $1 in
     pactl list short sinks ;;
 --search)
     [ -n "$2" ] || usage "--search requires a value"
-    pactl list short sinks | awk '$2~/'$2'/' ;;
+    pactl list short sinks | awk -v search="$2" '$2~search' ;;
 -s|--set)
     id=$2
     [ -n "$id" ] || usage "--set requires a value"
