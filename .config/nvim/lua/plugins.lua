@@ -30,20 +30,23 @@ return require('packer').startup(function(use)
   use 'hrsh7th/nvim-cmp'
   use 'ray-x/lsp_signature.nvim'
   use 'nvim-lua/plenary.nvim' -- lua completion
-  use {
-	"L3MON4D3/LuaSnip",
-	-- follow latest release.
-	tag = "v2.*", -- Replace <CurrentMajor> by the latest released major (first number of latest release)
-	-- install jsregexp (optional!:).
-	run = "make install_jsregexp"
-  }
+  -- use {
+  --   "L3MON4D3/LuaSnip",
+  --   -- follow latest release.
+  --   tag = "v2.*", -- Replace <CurrentMajor> by the latest released major (first number of latest release)
+  --   -- install jsregexp (optional!:).
+  --   run = "make install_jsregexp"
+  -- }
 
   -- fuzzy find
   use 'nvim-telescope/telescope.nvim'
 
   -- golang compile issue viewer
   use {'folke/trouble.nvim', config = function() require("trouble").setup{} end } -- shows golang errors window
-  use {"stevearc/aerial.nvim", config = function() require("aerial").setup() end } -- shows list of functions on right side window
+  use {"stevearc/aerial.nvim", config = function() require("aerial").setup{} end } -- shows list of functions on right side window
+
+  -- golang debugger
+  -- use { "rcarriga/nvim-dap-ui", config = function() require("nvim-dap-ui").setup() end }
 
   -- unused
   -- use 'hrsh7th/cmp-buffer' -- don't think I'm using this

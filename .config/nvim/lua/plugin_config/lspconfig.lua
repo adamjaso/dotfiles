@@ -1,16 +1,15 @@
---vim.diagnostic.config({
---  virtual_text = false
---})
-local lspconfig = require('lspconfig')
-lspconfig.lua_ls.setup{
+--local lspconfig = require('lspconfig')
+--local lspconfig = vim.lsp
+vim.lsp.config('lua_ls', {
   diagnostics = true,
-}
-lspconfig.gopls.setup{
+})
+vim.lsp.config('gopls', {
   --diagnostics = true,
   --root_dir = require('lspconfig').util.root_pattern(".git","go.mod","."),
   --filetypes = { "go", "gomod", "gowork", "gotmpl" },
   settings = {
     gopls = {
+      gofumpt = true,
       completeUnimported = true,
       usePlaceholders = true,
       analyses = {
@@ -18,8 +17,8 @@ lspconfig.gopls.setup{
       },
     },
   },
-}
-lspconfig.pyright.setup{
+})
+vim.lsp.config('pyright', {
   settings = {
     python = {
       analysis = {
@@ -27,8 +26,8 @@ lspconfig.pyright.setup{
       },
     },
   },
-}
-lspconfig.pylsp.setup{
+})
+vim.lsp.config('pylsp', {
   settings = {
     pylsp = {
       plugins = {
@@ -38,8 +37,9 @@ lspconfig.pylsp.setup{
       },
     },
   },
-} --pip install python-lsp-server
-lspconfig.volar.setup{
+}) --pip install python-lsp-server
+vim.lsp.config('ruff', {})
+vim.lsp.config('volar', {
   filetypes = {'typescript', 'javascript', 'javascriptreact', 'typescriptreact', 'vue', 'json'},
   --version = "2.2.8",
   init_options = {
@@ -52,10 +52,10 @@ lspconfig.volar.setup{
       tsdk = '/home/ajaso/.local/lib/node_modules/typescript/lib',
     }
   }
-}
---lspconfig.vuels.setup{ }
+})
+--vim.lsp.config('vuels', { }
 --local vue_language_server = "/home/ajaso/.local/lib/node_modules/@vue/language-server/bin/vue-language-server.js"
---lspconfig.ts_ls.setup{
+--vim.lsp.config('ts_ls', {
 --  init_options = {
 --    plugins = {
 --      -- mkdir -p ~/.local/lib
@@ -80,7 +80,14 @@ lspconfig.volar.setup{
 --    "javascriptreact",
 --    "typescriptreact",
 --  },
---}
+--})
+vim.lsp.enable('lua_ls')
+vim.lsp.enable('gopls')
+vim.lsp.enable('pyright')
+vim.lsp.enable('pylsp')
+vim.lsp.enable('ruff')
+--vim.lsp.enable('volar')
+vim.lsp.enable('vue_ls')
 
 -- Global mappings.
 -- See `:help vim.diagnostic.*` for documentation on any of the below functions
