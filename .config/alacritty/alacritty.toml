@@ -1,0 +1,17 @@
+[[hints.enabled]]
+command = "firefox"
+post_processing = true
+regex = "https?://[^\u0000-\u001F\u007F-<>\"\\s{-}\\^⟨⟩`]+"
+
+[hints.enabled.mouse]
+enabled = true
+mods = "Control"
+
+[[hints.enabled]]
+action = "Copy"
+post_processing = true
+regex = '[^\[\]$\s]+'
+
+[hints.enabled.mouse]
+enabled = true
+mods = "Control"

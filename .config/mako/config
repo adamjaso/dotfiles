@@ -1,0 +1,12 @@
+icons=0
+anchor=top-right
+layer=overlay
+on-notify=exec sh -c '{ echo -n notified on ; date ; } >> /var/log/notified'
+format=<b>%a</b>\n%s\n%b
+default-timeout=10000
+width=600
+height=200
+
+[urgency=critical]
+background-color=#fc6262
+border-color=#fcbdbd
