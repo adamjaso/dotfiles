@@ -26,8 +26,8 @@ vim.keymap.set('n', '<leader>fh', builtin.help_tags, {})
 vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename)
 
 -- lightweight autopairs
-vim.keymap.set("i", "(", "()")
-vim.keymap.set("i", "{", "{}")
-vim.keymap.set("i", "[", "[]")
-vim.keymap.set("i", '"', '""')
-vim.keymap.set("i", "'", "''")
+-- vim.keymap.set("i", "(", "()")
+-- vim.keymap.set("i", "{", "{}")
+-- vim.keymap.set("i", "[", "[]")
+-- vim.keymap.set("i", '"', '""')
+-- vim.keymap.set("i", "'", "''")

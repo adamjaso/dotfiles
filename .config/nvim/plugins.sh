@@ -4,11 +4,15 @@ plugin_clone_dir=~/.local/share/nvim/site/pack/plugins/start
 plugin_list_file=~/.config/nvim/plugins.txt
 
 list-current() {
-    find "${plugin_clone_dir}" -type d -name .git | sed 's:/\.git::'
+    find "${plugin_clone_dir}" -type d -name .git | _filter | sed 's:/\.git::'
 }
 
 list-file() {
-    cat "${plugin_list_file}"
+    cat "${plugin_list_file}" | _filter
+}
+
+_filter() {
+    grep -vE '^#'
 }
 
 pull() {

@@ -1,10 +1,22 @@
-require("mason").setup()
-require("lspconfig")
 require("colorscheme")
+require("nvim-cmp")
+
+require("mason").setup()
+require("nvim-tree").setup()
+require("nvim-autopairs").setup()
+require("trouble").setup()
+require("blame").setup()
+require("aerial").setup({
+  -- optionally use on_attach to set keymaps when aerial has attached to a buffer
+  on_attach = function(bufnr)
+    -- Jump forwards/backwards with '{' and '}'
+    vim.keymap.set("n", "{", "<cmd>AerialPrev<CR>", { buffer = bufnr })
+    vim.keymap.set("n", "}", "<cmd>AerialNext<CR>", { buffer = bufnr })
+  end,
+})
 require("telescope").setup{
   defaults = {
     -- Default configuration for telescope goes here:
-    -- config_key = value,
     mappings = {
       i = {
         -- map actions.which_key to <C-h> (default: <C-/>)
@@ -18,21 +30,181 @@ require("telescope").setup{
         "vendor",
     },
   },
-  pickers = {
-    -- Default configuration for builtin pickers goes here:
-    -- picker_name = {
-    --   picker_config_key = value,
-    --   ...
-    -- }
-    -- Now the picker_config_key will be applied every time you call this
-    -- builtin picker
-  },
-  extensions = {
-    -- Your extension configuration goes here:
-    -- extension_name = {
-    --   extension_config_key = value,
-    -- }
-    -- please take a look at the readme of the extension you want to configure
-  }
 }
-require("nvim-tree").setup()
+
+-- lspconfig
+
+vim.lsp.config('lua_ls', {
+  diagnostics = true,
+})
+vim.lsp.config('gopls', {
+  settings = {
+    gopls = {
+      gofumpt = true,
+      completeUnimported = true,
+      usePlaceholders = true,
+      analyses = {
+        unusedparams = true,
+      },
+    },
+  },
+})
+vim.lsp.config('pyright', {
+  settings = {
+    python = {
+      analysis = {
+        typeCheckingMode = "off",
+      },
+    },
+  },
+})
+vim.lsp.config('pylsp', {
+  settings = {
+    pylsp = {
+      plugins = {
+        black = { enabled = true },
+	isort = { enabled = true, profile = "black" },
+        pycodestyle = { enabled = true, maxLineLength = 200 }
+      },
+    },
+  },
+}) --pip install python-lsp-server
+vim.lsp.config('ruff', {})
+--vim.lsp.config('volar')
+vim.lsp.config('vuels', {
+  filetypes = {'typescript', 'javascript', 'javascriptreact', 'typescriptreact', 'vue', 'json'},
+  --version = "2.2.8",
+  init_options = {
+    vue = {
+      hybridMode = false,
+    },
+    typescript = {
+      -- replace with your global TypeScript library path
+      -- npm --prefix ~/.local/lib install typescript
+      tsdk = '/home/ajaso/.local/lib/node_modules/typescript/lib',
+    }
+  }
+})
+local vue_language_server = "/home/ajaso/.local/lib/node_modules/@vue/language-server/bin/vue-language-server.js"
+vim.lsp.config('ts_ls', {
+  init_options = {
+    plugins = {
+      -- mkdir -p ~/.local/lib
+      -- npm --prefix ~/.local/lib install @vue/language-server
+      -- npm --prefix .local/lib/ install @vue/language-plugin-pug
+      {
+        name = "@vue/typescript-plugin",
+        location = vue_language_server,
+        languages = {"vue"},
+      },
+      {
+        name = "@vue/typescript-plugin-pug",
+        location = vue_language_server,
+        languages = {"vue"},
+      },
+    },
+  },
+  filetypes = {
+    "vue",
+    "typescript",
+    "javascript",
+    "javascriptreact",
+    "typescriptreact",
+  },
+})
+vim.lsp.enable('lua_ls')
+vim.lsp.enable('ts_ls')
+vim.lsp.enable('vuels')
+vim.lsp.enable('gopls')
+vim.lsp.enable('pyright')
+vim.lsp.enable('pylsp')
+vim.lsp.enable('ruff')
+
+-- Global mappings.
+-- See `:help vim.diagnostic.*` for documentation on any of the below functions
+vim.keymap.set('n', '<space>e', vim.diagnostic.open_float)
+vim.keymap.set('n', '[d', vim.diagnostic.goto_prev)
+vim.keymap.set('n', ']d', vim.diagnostic.goto_next)
+vim.keymap.set('n', '<space>q', vim.diagnostic.setloclist)
+
+-- Autoformat on save
+vim.api.nvim_create_augroup('AutoFormatting', {})
+-- Golang -- https://www.reddit.com/r/neovim/comments/y9qv1w/autoformatting_on_save_with_vimlspbufformat_and/
+vim.api.nvim_create_autocmd('BufWritePre', {
+  pattern = '*.go',
+  group = 'AutoFormatting',
+  callback = function()
+    vim.lsp.buf.format({ async = false })
+  end,
+})
+-- Python -- https://stackoverflow.com/questions/77466697/how-to-automatically-format-on-save
+vim.api.nvim_create_autocmd('BufWritePost', {
+    pattern = '*.py',
+    group = 'AutoFormatting',
+    callback = function()
+        vim.cmd('silent !black --quiet %')            
+        vim.cmd('edit')
+    end,
+})
+
+-- gotmpl -- https://michenriksen.com/notes/nvim-go-template-syntax-highlighting/
+vim.api.nvim_create_autocmd({ 'BufRead', 'BufNewFile' }, {
+  group = vim.api.nvim_create_augroup('gotmpl_highlight', { clear = true }),
+  pattern = '*.tmpl',
+  callback = function()
+    local filename = vim.fn.expand('%:t')
+    local ext = filename:match('.*%.(.-)%.tmpl$')
+
+	-- Add more extension to syntax mappings here if you need to.
+    local ext_filetypes = {
+      go = 'go',
+      html = 'html',
+      md = 'markdown',
+      yaml = 'yaml',
+      yml = 'yaml',
+    }
+
+    if ext and ext_filetypes[ext] then
+      -- Set the primary filetype
+      vim.bo.filetype = ext_filetypes[ext]
+
+      -- Define embedded Go template syntax
+      vim.cmd([[
+        syntax include @gotmpl syntax/gotmpl.vim
+        syntax region gotmpl start="{{" end="}}" contains=@gotmpl containedin=ALL
+        syntax region gotmpl start="{%" end="%}" contains=@gotmpl containedin=ALL
+      ]])
+    end
+  end,
+})
+
+-- Use LspAttach autocommand to only map the following keys
+-- after the language server attaches to the current buffer
+vim.api.nvim_create_autocmd('LspAttach', {
+  group = vim.api.nvim_create_augroup('UserLspConfig', {}),
+  callback = function(ev)
+    -- Enable completion triggered by <c-x><c-o>
+    vim.bo[ev.buf].omnifunc = 'v:lua.vim.lsp.omnifunc'
+
+    -- Buffer local mappings.
+    -- See `:help vim.lsp.*` for documentation on any of the below functions
+    local opts = { buffer = ev.buf }
+    vim.keymap.set('n', 'gD', vim.lsp.buf.declaration, opts)
+    vim.keymap.set('n', 'gd', vim.lsp.buf.definition, opts)
+    vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
+    vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, opts)
+    vim.keymap.set('n', '<C-k>', vim.lsp.buf.signature_help, opts)
+    vim.keymap.set('n', '<space>wa', vim.lsp.buf.add_workspace_folder, opts)
+    vim.keymap.set('n', '<space>wr', vim.lsp.buf.remove_workspace_folder, opts)
+    vim.keymap.set('n', '<space>wl', function()
+      print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
+    end, opts)
+    vim.keymap.set('n', '<space>D', vim.lsp.buf.type_definition, opts)
+    vim.keymap.set('n', '<space>rn', vim.lsp.buf.rename, opts)
+    vim.keymap.set({ 'n', 'v' }, '<space>ca', vim.lsp.buf.code_action, opts)
+    vim.keymap.set('n', 'gr', vim.lsp.buf.references, opts)
+    vim.keymap.set('n', '<space>f', function()
+      vim.lsp.buf.format { async = true }
+    end, opts)
+  end,
+})

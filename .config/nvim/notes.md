@@ -2,6 +2,8 @@
 
 These are notes on manual plugin management.
 
-## 2026 February
+## Dependency notes
 
 - `telescope` requires `plenary` plugin.
+- `nvim-cmp` requires `cmp-nvim-lsp`
+- `nvim-cmp` config requires `cmp_luasnip`
