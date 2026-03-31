@@ -5,15 +5,17 @@ require("mason").setup()
 require("nvim-tree").setup()
 require("nvim-autopairs").setup()
 require("trouble").setup()
-require("blame").setup()
-require("aerial").setup({
+require("blame").setup{
+    date_format = "%Y-%m-%d",
+}
+require("aerial").setup{
   -- optionally use on_attach to set keymaps when aerial has attached to a buffer
   on_attach = function(bufnr)
     -- Jump forwards/backwards with '{' and '}'
     vim.keymap.set("n", "{", "<cmd>AerialPrev<CR>", { buffer = bufnr })
     vim.keymap.set("n", "}", "<cmd>AerialNext<CR>", { buffer = bufnr })
   end,
-})
+}
 require("telescope").setup{
   defaults = {
     -- Default configuration for telescope goes here:
@@ -33,7 +35,7 @@ require("telescope").setup{
 }
 
 -- lspconfig
-
+vim.lsp.config('bashls', {})
 vim.lsp.config('lua_ls', {
   diagnostics = true,
 })
@@ -112,6 +114,7 @@ vim.lsp.config('ts_ls', {
     "typescriptreact",
   },
 })
+vim.lsp.enable('bashls')
 vim.lsp.enable('lua_ls')
 vim.lsp.enable('ts_ls')
 vim.lsp.enable('vuels')
@@ -193,7 +196,7 @@ vim.api.nvim_create_autocmd('LspAttach', {
     vim.keymap.set('n', 'gd', vim.lsp.buf.definition, opts)
     vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
     vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, opts)
-    vim.keymap.set('n', '<C-k>', vim.lsp.buf.signature_help, opts)
+    vim.keymap.set('n', '<space>k', vim.lsp.buf.signature_help, opts)
     vim.keymap.set('n', '<space>wa', vim.lsp.buf.add_workspace_folder, opts)
     vim.keymap.set('n', '<space>wr', vim.lsp.buf.remove_workspace_folder, opts)
     vim.keymap.set('n', '<space>wl', function()
