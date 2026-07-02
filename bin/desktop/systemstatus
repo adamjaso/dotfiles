@@ -5,6 +5,13 @@ convert() {
     [ $val -gt 1000 ] && { echo $((val/1000))K ; return 0 ; }
     echo ${val}B ; return 0 ;
 }
+brightness() {
+    case ${XDG_SESSION_TYPE} in
+	    #amdgpu_bl0
+    wayland) brightnessctl -m | awk -F, '{print$4}' ;;
+    *)       printf "%02d%%" "$(xbacklight -get)" ;;
+    esac
+}
 while true; do
     t=$(date +%s%N)
     network=
@@ -23,23 +30,25 @@ while true; do
         }
         netindex=$((netindex+1))
     done
-    volume=$(pactl get-sink-volume @DEFAULT_SINK@ | awk -F/ 'NR==1{gsub(" ","",$2);gsub(" ","",$4);print $2==$4||$4=="" ? "vol "$2 : "vol L "$2" R "$4}')
+    volume=$(pactl get-sink-volume @DEFAULT_SINK@ | awk -F/ 'NR==1{gsub(" ","",$2);gsub(" ","",$4);print $2==$4||$4=="" ? $2 : "L "$2" R "$4}')
     volume=$volume"$(pactl get-sink-mute @DEFAULT_SINK@ | awk '$2=="yes"{print" M"}')"
     volume=$volume"$(pactl get-default-sink | awk '$1~/bluez/{print " bt"}')"
     cputemp=$(sensors -j 2>/dev/null | jq -r '."thinkpad-isa-0000"|(.CPU.temp1_input|rint|tostring)+" "+(.fan1.fan1_input|rint|tostring)' | xargs printf '%d°C% 4d RPM\n')
     cpuhog=$(ps --no-header --sort=-%cpu -eo %cpu,exe,comm | awk '$2!="/usr/bin/ps"{n=($2=="-"?$3:$2);printf"%8s %4s%%",substr(n, length(n)-7),$1;exit}')
-    brightness=$(brightnessctl -d amdgpu_bl0 -m | awk -F, '{print"light "$4}')
-    battery=$(acpi -b | awk -v warnpercent=20 -v t=$(date +%s) -F, '{charging=$1~/[Dd]ischarging/?gensub(/[ ]*([0-9]+):([0-9]+):.+/,"(\\1:\\2)","g",$3):(t%2==0?"+":" ");gsub("%","",$2);battlow=int($2)<warnpercent?(t%2==0 ?" LOW":"    "):"";print"bat"$2"% "charging""battlow}')
+    brightness=$(brightness)
+    battery=$(acpi -b | awk -v warnpercent=20 -v t=$(date +%s) -F, '{charging=$1~/[Dd]ischarging/?gensub(/[ ]*([0-9]+):([0-9]+):.+/,"(\\1:\\2)","g",$3):(t%2==0?"+":" ");gsub("%","",$2);battlow=int($2)<warnpercent?(t%2==0 ?" LOW":"    "):"";print$2"% "charging""battlow}')
     date=$(date +'%Y-%m-%d %l:%M:%S %p')
     load=$(uptime | awk -F'load average:' '{print$2}')
+
     #disk=$(df -h | awk '$6=="/"{print$3" / "$2" ("$5")"}')
-    disk=$(df -h | awk '$6=="/"{print$3" ("$5")"}')
+    disk=$(df -h | awk '$6=="/"{print$3" "$6" ("$5")"}')
+
     #mem=$(free -m | awk '$1=="Mem:"{print$3" / "$2" ("int($3/$2*100)"%)"}')
     mem=$(free -m | awk '$1=="Mem:"{printf"% 5s (%2d%%)", $3, int($3/$2*100)}')
+
     uname=$(uname -r)
-    #ticker=$(ticker.sh ETH-USD)
     exectime=$((($(date +%s%N)-t)/1000000))
-    echo -n "${network}mem $mem | disk $disk | cpu ${cputemp} | load $load (${cpuhog}) | $volume | $brightness | $battery | $uname | $date"$(printf " (%3dms)" ${exectime})
+    echo -en "\n${network}${mem} | $disk | ${cputemp} $load (${cpuhog}) | V $volume | L $brightness | B $battery | $date"$(printf " (%3dms)" ${exectime})
     sleeptime=1
     [ ${exectime} -gt 1000 ] || sleeptime=0."$((1000-${exectime}))"
     sleep ${sleeptime}

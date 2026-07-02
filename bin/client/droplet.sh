@@ -23,6 +23,8 @@ echo
 
 size=s-1vcpu-512mb-10gb
 echo Sizes:
+doctl compute size ls -o json | \
+    jq -r '.[]|select(.vcpus<=8 and .memory<=16384 and .price_monthly<=20)|"\(.slug)\t\(.regions|tostring)"'
 cat <<EOF
 s-1vcpu-512mb-10gb
 s-1vcpu-1gb
@@ -38,7 +40,7 @@ do
     [ -z "$_size" ] || size=$_size
 done
 
-region=sfo3
+#region=sfo3
 if [ -z "$region" ]
 then
     echo
@@ -56,4 +58,5 @@ doctl compute droplet create \
     --image $image \
     --size $size \
     --no-header \
+    --enable-ipv6 \
     $name

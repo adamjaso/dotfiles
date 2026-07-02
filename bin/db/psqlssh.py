@@ -117,9 +117,14 @@ def main():
         help="This indicates to use pg_dump with the '--column-inserts' flag",
     )
     psql_args.add_argument(
-        "--schema-only",
+        "--include-schema",
         action="store_true",
-        help="This indicates to use 'pg_dump' to dump the Postgres database schema only",
+        help="This indicates to use 'pg_dump' to dump the Postgres database schema",
+    )
+    psql_args.add_argument(
+        "--exclude-rows",
+        action="store_true",
+        help="This indicates to use 'pg_dump' to dump the Postgres database and exclude rows (mainly useful to dump schema only)",
     )
     psql_args.add_argument(
         "--run-query",
@@ -176,7 +181,8 @@ def main():
             dump=args.dump,
             backup=args.backup,
             column_inserts=args.column_inserts,
-            schema_only=args.schema_only,
+            include_schema=args.include_schema,
+            exclude_rows=args.exclude_rows,
             exclude_tables=args.exclude_tables,
             include_tables=args.include_tables,
             use_history=args.use_history,
@@ -208,7 +214,8 @@ def psql_command(
     psql_password=None,
     psql_timeout=None,
     dump=False,
-    schema_only=False,
+    include_schema=False,
+    exclude_rows=False,
     column_inserts=False,
     exclude_tables=None,
     include_tables=None,
@@ -232,22 +239,24 @@ def psql_command(
         )
     )
     if dump:
-        if schema_only:
+        if include_schema:
             psql_command = [
                 "pg_dump",
-                "--schema-only",
                 "--no-owner",
                 "--no-acl",
                 psql_url,
             ]
-        else:
+            if exclude_rows:
+                psql_command.append("--schema-only")
+        if not exclude_rows:
             psql_command = [
                 "pg_dump",
-                "--data-only",
                 "--no-owner",
                 "--no-acl",
                 psql_url,
             ]
+            if not include_schema:
+                psql_command.append("--data-only")
             if backup:
                 psql_command.insert(1, "-Fc")
             elif column_inserts:
